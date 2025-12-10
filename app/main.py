@@ -20,16 +20,22 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Frontend URL
+    allow_origins=["*"],  # Allow all origins for dynamic frontend ports
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+from fastapi.staticfiles import StaticFiles
+
 # Include routers
 app.include_router(files.router, prefix="/api/files", tags=["files"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(ocr.router, prefix="/api/ocr", tags=["ocr"])
+
+# Mount static files for document viewing
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.get("/")
 async def root():

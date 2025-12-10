@@ -2,8 +2,6 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
 import os
 import pandas as pd
-import fitz  # PyMuPDF
-from ..utils.file_converter import convert_excel_to_pdf
 from ..utils.file_storage import save_upload_file
 
 router = APIRouter()
@@ -15,7 +13,7 @@ if not os.path.exists(UPLOAD_DIR):
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     """
-    Upload a PDF or Excel file
+    Upload a PDF or Excel file and extract its text immediately.
     """
     try:
         # Validate file type
@@ -25,22 +23,29 @@ async def upload_file(file: UploadFile = File(...)):
         # Save the uploaded file
         file_path = await save_upload_file(file, UPLOAD_DIR)
 
-        # If Excel file, convert to PDF and extract cell info
-        if file.filename.endswith(('.xlsx', '.xls')):
-            pdf_path, cell_info_path = await convert_excel_to_pdf(file_path)
-            return {
-                "message": "File uploaded and converted successfully",
-                "original_file": file_path,
-                "converted_file": pdf_path,
-                "cell_info": cell_info_path
-            }
+        extraction_source = file_path
+        
+        from ..utils.text_extractor import extract_text_from_pdf, save_extracted_text
+        
+        if file_path.endswith('.pdf'):
+            text_blocks = extract_text_from_pdf(extraction_source)
+            json_path = save_extracted_text(extraction_source, text_blocks)
+            blocks_count = len(text_blocks)
+        else:
+            text_blocks = []
+            json_path = ""
+            blocks_count = 0
 
         return {
-            "message": "File uploaded successfully",
-            "file_path": file_path
+            "message": "File uploaded and processed successfully",
+            "file_path": file_path,
+            "processed_json": json_path,
+            "blocks_count": blocks_count
         }
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/list")
